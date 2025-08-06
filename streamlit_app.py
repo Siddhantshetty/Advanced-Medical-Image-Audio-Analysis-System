@@ -1,14 +1,8 @@
-# if you dont use pipenv uncomment the following:
-# from dotenv import load_dotenv
-# load_dotenv()
-
 # VoiceBot UI with Streamlit
 import os
 import streamlit as st
 from io import BytesIO
 import tempfile
-import streamlit as st
-import os
 
 # Configure secrets for deployment
 if hasattr(st, 'secrets'):
@@ -18,16 +12,35 @@ if hasattr(st, 'secrets'):
     except:
         pass
 
-# Force reload environment variables
-if 'ELEVENLABS_API_KEY' in os.environ:
-    del os.environ['ELEVENLABS_API_KEY']
+# Better API key configuration - FIXED VERSION
+def setup_api_keys():
+    """Setup API keys from various sources with proper fallback"""
+    
+    # Try to load from .env file first
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+    
+    # Then try Streamlit secrets (this will override .env if available)
+    if hasattr(st, 'secrets'):
+        try:
+            # Get keys from secrets, fallback to existing env vars
+            groq_key = st.secrets.get('GROQ_API_KEY') or os.environ.get('GROQ_API_KEY', '')
+            elevenlabs_key = st.secrets.get('ELEVENLABS_API_KEY') or os.environ.get('ELEVENLABS_API_KEY', '')
+            
+            # Only set if we have valid keys
+            if groq_key:
+                os.environ['GROQ_API_KEY'] = groq_key
+            if elevenlabs_key:
+                os.environ['ELEVENLABS_API_KEY'] = elevenlabs_key
+                
+        except Exception as e:
+            print(f"Warning: Could not load secrets: {e}")
 
-# Reload dotenv to get fresh API key
-try:
-    from dotenv import load_dotenv
-    load_dotenv(override=True)  # Override existing environment variables
-except ImportError:
-    pass
+# Call this function to setup API keys
+setup_api_keys()
 
 # Try to import streamlit-audiorec for better web recording
 try:
@@ -1126,6 +1139,26 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    
+    # TEMPORARY DEBUG - Add this to check API keys (REMOVE AFTER TESTING)
+    st.write("🔍 **Debug Info:**")
+    if hasattr(st, 'secrets'):
+        st.write("✅ Streamlit secrets available")
+        try:
+            elevenlabs_in_secrets = 'ELEVENLABS_API_KEY' in st.secrets
+            st.write(f"ELEVENLABS_API_KEY in secrets: {elevenlabs_in_secrets}")
+            if elevenlabs_in_secrets:
+                key = st.secrets['ELEVENLABS_API_KEY']
+                st.write(f"ElevenLabs key preview: {key[:8]}...{key[-4:] if len(key) > 8 else ''}")
+        except Exception as e:
+            st.error(f"Error reading secrets: {e}")
+    else:
+        st.write("❌ Streamlit secrets not available")
+    
+    st.write(f"ELEVENLABS_API_KEY in env: {bool(os.environ.get('ELEVENLABS_API_KEY'))}")
+    st.write(f"GROQ_API_KEY in env: {bool(os.environ.get('GROQ_API_KEY'))}")
+    st.write("---")
+    # END TEMPORARY DEBUG
     
     # Apply dark theme
     apply_dark_theme()
