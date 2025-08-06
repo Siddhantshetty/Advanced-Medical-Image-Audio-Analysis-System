@@ -292,29 +292,29 @@ def process_inputs(audio_file, image_file):
                 output_filepath="final.mp3"
             )
         except Exception as e:
-            error_message = str(e)
-            if "quota_exceeded" in error_message or "401" in error_message:
-                # Silently use Google TTS without warning the user
+            # IMPROVED FALLBACK - catches ALL ElevenLabs errors
+            st.info("🔄 ElevenLabs unavailable, switching to Google TTS...")
+            
+            try:
+                # Fallback to Google TTS with faster speed
+                voice_of_doctor = text_to_speech_with_gtts(
+                    input_text=doctor_response, 
+                    output_filepath="final.mp3",
+                    speed=1.5  # Faster speech rate (if your function supports this parameter)
+                )
+            except TypeError:
+                # If speed parameter is not supported, try without it
                 try:
-                    # Fallback to Google TTS with faster speed
                     voice_of_doctor = text_to_speech_with_gtts(
                         input_text=doctor_response, 
-                        output_filepath="final.mp3",
-                        speed=1.5  # Faster speech rate (if your function supports this parameter)
+                        output_filepath="final.mp3"
                     )
-                except TypeError:
-                    # If speed parameter is not supported, try without it
-                    try:
-                        voice_of_doctor = text_to_speech_with_gtts(
-                            input_text=doctor_response, 
-                            output_filepath="final.mp3"
-                        )
-                    except Exception as gtts_error:
-                        st.error(f"Error generating voice response: {str(gtts_error)}")
                 except Exception as gtts_error:
-                    st.error(f"Error generating voice response: {str(gtts_error)}")
-            else:
-                st.error(f"Error generating voice response: {error_message}")
+                    st.error(f"Error generating voice response with Google TTS: {str(gtts_error)}")
+                    voice_of_doctor = None
+            except Exception as gtts_error:
+                st.error(f"Error generating voice response with Google TTS: {str(gtts_error)}")
+                voice_of_doctor = None
     
     return speech_to_text_output, doctor_response, voice_of_doctor
 
