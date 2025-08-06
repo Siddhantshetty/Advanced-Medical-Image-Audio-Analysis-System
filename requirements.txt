@@ -1,7 +1,7 @@
 streamlit>=1.28.0
 python-dotenv
 groq
-elevenlabs
+elevenlabs>=0.2.26
 gtts
 requests
 Pillow
