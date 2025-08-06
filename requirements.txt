@@ -10,3 +10,4 @@ pandas
 soundfile
 matplotlib
 plotly
+SpeechRecognition>=3.10.0
