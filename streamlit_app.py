@@ -28,13 +28,18 @@ def setup_api_keys():
         try:
             # Get keys from secrets, fallback to existing env vars
             groq_key = st.secrets.get('GROQ_API_KEY') or os.environ.get('GROQ_API_KEY', '')
-            elevenlabs_key = st.secrets.get('ELEVENLABS_API_KEY') or os.environ.get('ELEVENLABS_API_KEY', '')
+            # Support both ELEVENLABS_API_KEY and ELEVEN_API_KEY
+            elevenlabs_key = (st.secrets.get('ELEVENLABS_API_KEY') or 
+                            st.secrets.get('ELEVEN_API_KEY') or 
+                            os.environ.get('ELEVENLABS_API_KEY', '') or 
+                            os.environ.get('ELEVEN_API_KEY', ''))
             
             # Only set if we have valid keys
             if groq_key:
                 os.environ['GROQ_API_KEY'] = groq_key
             if elevenlabs_key:
                 os.environ['ELEVENLABS_API_KEY'] = elevenlabs_key
+                os.environ['ELEVEN_API_KEY'] = elevenlabs_key  # Set both for compatibility
                 
         except Exception as e:
             print(f"Warning: Could not load secrets: {e}")
@@ -283,7 +288,7 @@ def process_inputs(audio_file, image_file):
             st.info("🎤 Generating voice response...")
             
             # Determine preferred TTS based on API key availability
-            elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
+            elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY') or os.environ.get('ELEVEN_API_KEY')
             preferred_tts = "elevenlabs" if (elevenlabs_key and elevenlabs_key.strip()) else "gtts"
             
             success, audio_file, message = enhanced_text_to_speech(
