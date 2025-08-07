@@ -276,44 +276,58 @@ def process_inputs(audio_file, image_file):
     else:
         doctor_response = "No image provided for me to analyze"
     
-    # Generate voice response
+    # Generate voice response - IMPROVED WITH BETTER FALLBACK
     if doctor_response and not doctor_response.startswith("Error") and not doctor_response.startswith("No image"):
-        # Check text length to estimate credits needed
-        text_length = len(doctor_response)
-        estimated_credits = text_length * 0.2  # Rough estimate
+        # Check if we have ElevenLabs API key
+        elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
         
-        if estimated_credits > 100:  # If estimated credits > 100, warn user
-            st.warning(f"⚠️ Long response detected ({text_length} characters). This might use ~{int(estimated_credits)} credits.")
-        
-        try:
+        if elevenlabs_key and elevenlabs_key.strip():
             # Try ElevenLabs first
-            voice_of_doctor = text_to_speech_with_elevenlabs(
-                input_text=doctor_response, 
-                output_filepath="final.mp3"
-            )
-        except Exception as e:
-            # IMPROVED FALLBACK - catches ALL ElevenLabs errors
-            st.info("🔄 ElevenLabs unavailable, switching to Google TTS...")
-            
             try:
-                # Fallback to Google TTS with faster speed
-                voice_of_doctor = text_to_speech_with_gtts(
+                st.info("🎤 Generating voice with ElevenLabs...")
+                voice_of_doctor = text_to_speech_with_elevenlabs(
                     input_text=doctor_response, 
-                    output_filepath="final.mp3",
-                    speed=1.5  # Faster speech rate (if your function supports this parameter)
+                    output_filepath="final.mp3"
                 )
-            except TypeError:
-                # If speed parameter is not supported, try without it
+                if voice_of_doctor:
+                    st.success("✅ ElevenLabs TTS successful!")
+                else:
+                    raise Exception("ElevenLabs returned None")
+                    
+            except Exception as e:
+                # Fallback to Google TTS
+                st.warning(f"⚠️ ElevenLabs failed: {str(e)}")
+                st.info("🔄 Switching to Google TTS...")
+                
                 try:
                     voice_of_doctor = text_to_speech_with_gtts(
                         input_text=doctor_response, 
                         output_filepath="final.mp3"
                     )
+                    if voice_of_doctor:
+                        st.success("✅ Google TTS successful!")
+                    else:
+                        st.error("❌ Google TTS also failed")
+                        
                 except Exception as gtts_error:
-                    st.error(f"Error generating voice response with Google TTS: {str(gtts_error)}")
+                    st.error(f"❌ Google TTS error: {str(gtts_error)}")
                     voice_of_doctor = None
+        else:
+            # No ElevenLabs key, use Google TTS directly
+            st.info("🔄 Using Google TTS (no ElevenLabs API key)...")
+            
+            try:
+                voice_of_doctor = text_to_speech_with_gtts(
+                    input_text=doctor_response, 
+                    output_filepath="final.mp3"
+                )
+                if voice_of_doctor:
+                    st.success("✅ Google TTS successful!")
+                else:
+                    st.error("❌ Google TTS failed")
+                    
             except Exception as gtts_error:
-                st.error(f"Error generating voice response with Google TTS: {str(gtts_error)}")
+                st.error(f"❌ Google TTS error: {str(gtts_error)}")
                 voice_of_doctor = None
     
     return speech_to_text_output, doctor_response, voice_of_doctor
@@ -1140,26 +1154,6 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # TEMPORARY DEBUG - Add this to check API keys (REMOVE AFTER TESTING)
-    st.write("🔍 **Debug Info:**")
-    if hasattr(st, 'secrets'):
-        st.write("✅ Streamlit secrets available")
-        try:
-            elevenlabs_in_secrets = 'ELEVENLABS_API_KEY' in st.secrets
-            st.write(f"ELEVENLABS_API_KEY in secrets: {elevenlabs_in_secrets}")
-            if elevenlabs_in_secrets:
-                key = st.secrets['ELEVENLABS_API_KEY']
-                st.write(f"ElevenLabs key preview: {key[:8]}...{key[-4:] if len(key) > 8 else ''}")
-        except Exception as e:
-            st.error(f"Error reading secrets: {e}")
-    else:
-        st.write("❌ Streamlit secrets not available")
-    
-    st.write(f"ELEVENLABS_API_KEY in env: {bool(os.environ.get('ELEVENLABS_API_KEY'))}")
-    st.write(f"GROQ_API_KEY in env: {bool(os.environ.get('GROQ_API_KEY'))}")
-    st.write("---")
-    # END TEMPORARY DEBUG
-    
     # Apply dark theme
     apply_dark_theme()
     
@@ -1179,7 +1173,7 @@ def main():
     # Sidebar footer (always visible)
     st.sidebar.markdown("---")
     
-    # Show debug info if enabled
+    # Show debug info if enabled (only show if explicitly enabled in settings)
     if st.session_state.get('show_debug', False):
         with st.sidebar.expander("🔧 Debug Info"):
             st.json({
