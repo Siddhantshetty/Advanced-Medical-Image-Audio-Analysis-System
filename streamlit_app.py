@@ -51,7 +51,7 @@ except ImportError:
 
 from brain_of_the_doctor import encode_image, analyze_image_with_query
 from voice_of_the_patient import record_audio, transcribe_with_groq
-from voice_of_the_doctor import text_to_speech_with_gtts, text_to_speech_with_elevenlabs
+from voice_of_the_doctor import text_to_speech_with_gtts, text_to_speech_with_elevenlabs, enhanced_text_to_speech
 
 system_prompt = """You have to act as a professional doctor, i know you are not but this is for learning purpose. 
             What's in this image?. Do you find anything wrong with it medically? 
@@ -276,59 +276,34 @@ def process_inputs(audio_file, image_file):
     else:
         doctor_response = "No image provided for me to analyze"
     
-    # Generate voice response - IMPROVED WITH BETTER FALLBACK
+    # Generate voice response - IMPROVED WITH ENHANCED TTS
     if doctor_response and not doctor_response.startswith("Error") and not doctor_response.startswith("No image"):
-        # Check if we have ElevenLabs API key
-        elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
-        
-        if elevenlabs_key and elevenlabs_key.strip():
-            # Try ElevenLabs first
-            try:
-                st.info("🎤 Generating voice with ElevenLabs...")
-                voice_of_doctor = text_to_speech_with_elevenlabs(
-                    input_text=doctor_response, 
-                    output_filepath="final.mp3"
-                )
-                if voice_of_doctor:
-                    st.success("✅ ElevenLabs TTS successful!")
-                else:
-                    raise Exception("ElevenLabs returned None")
-                    
-            except Exception as e:
-                # Fallback to Google TTS
-                st.warning(f"⚠️ ElevenLabs failed: {str(e)}")
-                st.info("🔄 Switching to Google TTS...")
-                
-                try:
-                    voice_of_doctor = text_to_speech_with_gtts(
-                        input_text=doctor_response, 
-                        output_filepath="final.mp3"
-                    )
-                    if voice_of_doctor:
-                        st.success("✅ Google TTS successful!")
-                    else:
-                        st.error("❌ Google TTS also failed")
-                        
-                except Exception as gtts_error:
-                    st.error(f"❌ Google TTS error: {str(gtts_error)}")
-                    voice_of_doctor = None
-        else:
-            # No ElevenLabs key, use Google TTS directly
-            st.info("🔄 Using Google TTS (no ElevenLabs API key)...")
+        # Use the enhanced TTS function with multiple fallbacks
+        try:
+            st.info("🎤 Generating voice response...")
             
-            try:
-                voice_of_doctor = text_to_speech_with_gtts(
-                    input_text=doctor_response, 
-                    output_filepath="final.mp3"
-                )
-                if voice_of_doctor:
-                    st.success("✅ Google TTS successful!")
-                else:
-                    st.error("❌ Google TTS failed")
-                    
-            except Exception as gtts_error:
-                st.error(f"❌ Google TTS error: {str(gtts_error)}")
+            # Determine preferred TTS based on API key availability
+            elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
+            preferred_tts = "elevenlabs" if (elevenlabs_key and elevenlabs_key.strip()) else "gtts"
+            
+            success, audio_file, message = enhanced_text_to_speech(
+                input_text=doctor_response,
+                output_filepath="final.mp3",
+                preferred_tts=preferred_tts
+            )
+            
+            if success:
+                st.success(f"✅ {message}")
+                voice_of_doctor = audio_file
+            else:
+                st.error(f"❌ TTS failed: {message}")
                 voice_of_doctor = None
+                
+        except Exception as e:
+            st.error(f"❌ TTS error: {str(e)}")
+            voice_of_doctor = None
+    else:
+        voice_of_doctor = None
     
     return speech_to_text_output, doctor_response, voice_of_doctor
 
